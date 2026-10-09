@@ -99,6 +99,7 @@ export class ApplicationsService {
     const replied = (data.recruiterReplied as boolean | undefined) ?? dto.recruiterReplied;
     if (replied === true && !prev.recruiterReplied) {
       data.recruiterRepliedAt = at;
+      if (!prev.respondedAt) data.respondedAt = at;
       if (dto.needsReply === undefined) data.needsReply = true;
     }
     if (replied === false) data.recruiterRepliedAt = null;
