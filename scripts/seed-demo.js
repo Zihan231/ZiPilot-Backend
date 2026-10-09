@@ -75,7 +75,7 @@ async function main() {
 
     const activity = new ActivityService(prisma);
     const apps = new ApplicationsService(prisma, activity);
-    const wishlist = new WishlistService(prisma, activity, apps);
+    const wishlist = new WishlistService(prisma, activity);
     const pipeline = new PipelineService(prisma, activity);
 
     for (const a of APPLICATIONS) {
@@ -94,7 +94,7 @@ async function main() {
         priority: a.priority,
         appliedAt: day(-a.daysAgo, 10),
         jobUrl: `https://jobs.example.com/${a.company.toLowerCase().replace(/\s+/g, '-')}`,
-        resumeVersion: a.workplace === 'REMOTE' ? 'v4-remote' : 'v3-frontend',
+        companyWebsite: `https://www.${a.company.toLowerCase().replace(/[^a-z0-9]+/g, '')}.com`,
         recruiterName: a.recruiter?.[0] ?? null,
         recruiterEmail: a.recruiter?.[1] ?? null,
         recruiterLinkedin: a.recruiter ? 'https://www.linkedin.com/in/example' : null,

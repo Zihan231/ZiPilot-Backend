@@ -1,10 +1,8 @@
 import {
-  AppliedVia,
   ApplicationStatus,
   ConnectionStatus,
   JobType,
   MessageStatus,
-  Platform,
   Priority,
   Workplace,
 } from '@prisma/client';
@@ -18,8 +16,10 @@ export class CreateApplicationDto {
   @IsString() @MinLength(1) @MaxLength(200) company: string;
   @IsString() @MinLength(1) @MaxLength(200) position: string;
   @IsOptional() @emptyToNull() @IsString() @MaxLength(2000) jobUrl?: string | null;
-  @IsOptional() @IsEnum(Platform) platform?: Platform;
-  @IsOptional() @IsEnum(AppliedVia) appliedVia?: AppliedVia;
+  /** Built-in key (LINKEDIN…) or custom option text */
+  @IsOptional() @IsString() @MinLength(1) @MaxLength(60) platform?: string;
+  /** Built-in key (EASY_APPLY…) or custom option text */
+  @IsOptional() @IsString() @MinLength(1) @MaxLength(60) appliedVia?: string;
   @IsOptional() @IsEnum(JobType) jobType?: JobType;
   @IsOptional() @IsEnum(Workplace) workplace?: Workplace;
   @IsOptional() @emptyToNull() @IsString() @MaxLength(200) location?: string | null;
@@ -32,7 +32,8 @@ export class CreateApplicationDto {
   @IsOptional() @IsEnum(Priority) priority?: Priority;
   @IsOptional() @IsDateString() appliedAt?: string;
   @IsOptional() @emptyToNull() @ValidateIf((_, v) => v !== null) @IsDateString() deadline?: string | null;
-  @IsOptional() @emptyToNull() @IsString() @MaxLength(200) resumeVersion?: string | null;
+  @IsOptional() @emptyToNull() @IsString() @MaxLength(500) companyWebsite?: string | null;
+  @IsOptional() @emptyToNull() @IsString() @MaxLength(100) jobReference?: string | null;
   @IsOptional() @emptyToNull() @IsString() @MaxLength(20000) notes?: string | null;
 
   @IsOptional() @emptyToNull() @IsString() @MaxLength(200) recruiterName?: string | null;

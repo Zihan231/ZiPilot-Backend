@@ -1,6 +1,6 @@
 import { Body, Controller, Get, Header, Module, Put, ServiceUnavailableException } from '@nestjs/common';
 import { Type } from 'class-transformer';
-import { IsArray, IsBoolean, IsString, MaxLength, ValidateNested } from 'class-validator';
+import { ArrayMaxSize, IsArray, IsBoolean, IsString, MaxLength, ValidateNested } from 'class-validator';
 import { Public } from '../auth/firebase-auth.guard';
 import { AuthUser, CurrentUser } from '../auth/current-user.decorator';
 import { PrismaService } from '../prisma/prisma.module';
@@ -8,6 +8,11 @@ import { PrismaService } from '../prisma/prisma.module';
 class LayoutItem {
   @IsString() @MaxLength(50) id: string;
   @IsBoolean() visible: boolean;
+}
+
+export class CustomOptionsDto {
+  @IsArray() @ArrayMaxSize(50) @IsString({ each: true }) @MaxLength(60, { each: true }) platform: string[];
+  @IsArray() @ArrayMaxSize(50) @IsString({ each: true }) @MaxLength(60, { each: true }) appliedVia: string[];
 }
 
 export class DashboardLayoutDto {
@@ -46,6 +51,15 @@ export class MeController {
   @Get('me')
   me(@CurrentUser() user: AuthUser) {
     return this.prisma.user.findUnique({ where: { id: user.id } });
+  }
+
+  /** Saves the user's custom Platform / Applied via choices (trimmed, de-duplicated). */
+  @Put('me/options')
+  async options(@CurrentUser() user: AuthUser, @Body() dto: CustomOptionsDto) {
+    const clean = (arr: string[]) => [...new Map(arr.map((v) => v.trim()).filter(Boolean).map((v) => [v.toLowerCase(), v])).values()];
+    const customOptions = { platform: clean(dto.platform), appliedVia: clean(dto.appliedVia) };
+    const u = await this.prisma.user.update({ where: { id: user.id }, data: { customOptions } });
+    return u.customOptions;
   }
 
   /** Persists dashboard section order + visibility. */

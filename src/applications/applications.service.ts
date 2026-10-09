@@ -38,19 +38,22 @@ export class ApplicationsService {
   /** Distinct values for searchable multi-select filters. */
   async facets(user: AuthUser) {
     const base = { userId: user.id };
-    const [companies, countries, cities, currencies, resumes] = await Promise.all([
+    const [companies, countries, cities, currencies, platforms, appliedVias] = await Promise.all([
       this.prisma.application.groupBy({ by: ['company'], where: base, _count: { _all: true }, orderBy: { company: 'asc' } }),
       this.prisma.application.groupBy({ by: ['country'], where: { ...base, country: { not: null } }, orderBy: { country: 'asc' } }),
       this.prisma.application.groupBy({ by: ['city'], where: { ...base, city: { not: null } }, orderBy: { city: 'asc' } }),
       this.prisma.application.groupBy({ by: ['currency'], where: { ...base, currency: { not: null } }, orderBy: { currency: 'asc' } }),
-      this.prisma.application.groupBy({ by: ['resumeVersion'], where: { ...base, resumeVersion: { not: null } }, orderBy: { resumeVersion: 'asc' } }),
+      this.prisma.application.groupBy({ by: ['platform'], where: base, orderBy: { platform: 'asc' } }),
+      this.prisma.application.groupBy({ by: ['appliedVia'], where: base, orderBy: { appliedVia: 'asc' } }),
     ]);
     return {
       companies: companies.map((c) => ({ value: c.company, count: c._count._all })),
       countries: countries.map((c) => c.country!),
       cities: cities.map((c) => c.city!),
       currencies: currencies.map((c) => c.currency!),
-      resumeVersions: resumes.map((r) => r.resumeVersion!),
+      /** Every platform / applied-via value in use, so filters include custom ones */
+      platforms: platforms.map((r) => r.platform),
+      appliedVias: appliedVias.map((r) => r.appliedVia),
     };
   }
 
@@ -232,7 +235,8 @@ export const APPLICATION_CSV_COLUMNS: CsvColumn<Row>[] = [
   { key: 'salary', header: 'Salary', value: (r) => (r.salaryMin || r.salaryMax ? `${r.salaryMin ?? ''}-${r.salaryMax ?? ''} ${r.currency ?? ''}`.trim() : '') },
   { key: 'priority', header: 'Priority', value: (r) => r.priority },
   { key: 'deadline', header: 'Deadline', value: (r) => r.deadline },
-  { key: 'resumeVersion', header: 'Resume Version', value: (r) => r.resumeVersion },
+  { key: 'companyWebsite', header: 'Company Website', value: (r) => r.companyWebsite },
+  { key: 'jobReference', header: 'Job ID', value: (r) => r.jobReference },
   { key: 'recruiter', header: 'Recruiter', value: (r) => r.recruiterName },
   { key: 'recruiterEmail', header: 'Recruiter Email', value: (r) => r.recruiterEmail },
   { key: 'recruiterLinkedin', header: 'Recruiter LinkedIn', value: (r) => r.recruiterLinkedin },

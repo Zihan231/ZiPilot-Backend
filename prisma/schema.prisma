@@ -24,28 +24,6 @@ enum ApplicationStatus {
   GHOSTED
 }
 
-enum Platform {
-  LINKEDIN
-  INDEED
-  GLASSDOOR
-  COMPANY_WEBSITE
-  WELLFOUND
-  BDJOBS
-  ZIPRECRUITER
-  REFERRAL
-  OTHER
-}
-
-enum AppliedVia {
-  EASY_APPLY
-  WEBSITE
-  EMAIL
-  REFERRAL
-  RECRUITER
-  JOB_PORTAL
-  OTHER
-}
-
 enum JobType {
   FULL_TIME
   PART_TIME
@@ -151,6 +129,8 @@ model User {
   displayName     String?
   photoUrl        String?
   dashboardLayout Json?
+  /// User-defined extra choices, e.g. { "platform": ["Bdjobs Premium"], "appliedVia": ["WhatsApp"] }
+  customOptions   Json?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
@@ -168,25 +148,28 @@ model Application {
   userId String
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  company       String
-  position      String
-  jobUrl        String?
-  platform      Platform          @default(LINKEDIN)
-  appliedVia    AppliedVia        @default(WEBSITE)
-  jobType       JobType           @default(FULL_TIME)
-  workplace     Workplace         @default(ONSITE)
-  location      String?
-  country       String?
-  city          String?
-  salaryMin     Int?
-  salaryMax     Int?
-  currency      String?
-  status        ApplicationStatus @default(APPLIED)
-  priority      Priority          @default(MEDIUM)
-  appliedAt     DateTime          @default(now())
-  deadline      DateTime?
-  resumeVersion String?
-  notes         String?
+  company        String
+  position       String
+  jobUrl         String?
+  /// Built-in keys (LINKEDIN, INDEED, …) or a user's custom option text
+  platform       String            @default("LINKEDIN")
+  /// Built-in keys (EASY_APPLY, WEBSITE, …) or a user's custom option text
+  appliedVia     String            @default("WEBSITE")
+  jobType        JobType           @default(FULL_TIME)
+  workplace      Workplace         @default(ONSITE)
+  location       String?
+  country        String?
+  city           String?
+  salaryMin      Int?
+  salaryMax      Int?
+  currency       String?
+  status         ApplicationStatus @default(APPLIED)
+  priority       Priority          @default(MEDIUM)
+  appliedAt      DateTime          @default(now())
+  deadline       DateTime?
+  companyWebsite String?
+  jobReference   String?
+  notes          String?
 
   // Recruiter outreach
   recruiterName      String?
@@ -210,11 +193,11 @@ model Application {
   offeredAt     DateTime?
   rejectedAt    DateTime?
 
-  lastActivityAt DateTime @default(now())
-  wishlistJobId  String?  @unique
+  lastActivityAt DateTime     @default(now())
+  wishlistJobId  String?      @unique
   wishlistJob    WishlistJob? @relation(fields: [wishlistJobId], references: [id], onDelete: SetNull)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
 
   followUps  FollowUp[]
   interviews Interview[]
@@ -242,26 +225,32 @@ model WishlistJob {
   userId String
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  company      String
-  position     String
-  jobUrl       String?
-  platform     Platform  @default(LINKEDIN)
-  location     String?
-  country      String?
-  city         String?
-  workplace    Workplace @default(ONSITE)
-  jobType      JobType   @default(FULL_TIME)
-  salaryMin    Int?
-  salaryMax    Int?
-  currency     String?
-  priority     Priority  @default(MEDIUM)
-  deadline     DateTime?
-  notes        String?
-  reminderSent Boolean   @default(false)
-  reminderAt   DateTime?
-  appliedAt    DateTime?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  company           String
+  position          String
+  jobUrl            String?
+  platform          String    @default("LINKEDIN")
+  appliedVia        String?
+  companyWebsite    String?
+  jobReference      String?
+  recruiterName     String?
+  recruiterEmail    String?
+  recruiterLinkedin String?
+  location          String?
+  country           String?
+  city              String?
+  workplace         Workplace @default(ONSITE)
+  jobType           JobType   @default(FULL_TIME)
+  salaryMin         Int?
+  salaryMax         Int?
+  currency          String?
+  priority          Priority  @default(MEDIUM)
+  deadline          DateTime?
+  notes             String?
+  reminderSent      Boolean   @default(false)
+  reminderAt        DateTime?
+  appliedAt         DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
   application  Application?
   activities   Activity[]

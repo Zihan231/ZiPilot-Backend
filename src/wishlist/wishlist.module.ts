@@ -1,13 +1,11 @@
 import { Body, Controller, Delete, Get, Injectable, Module, NotFoundException, Param, Patch, Post, Query, Res } from '@nestjs/common';
 import { PartialType } from '@nestjs/mapped-types';
-import { AppliedVia, JobType, Platform, Prisma, Priority, Workplace } from '@prisma/client';
+import { JobType, Prisma, Priority, Workplace } from '@prisma/client';
 import { Transform } from 'class-transformer';
 import { IsBoolean, IsDateString, IsEnum, IsInt, IsOptional, IsString, MaxLength, Min, MinLength } from 'class-validator';
 import type { Response } from 'express';
 import { DateTime } from 'luxon';
 import { ActivityService } from '../activity/activity.module';
-import { ApplicationsModule } from '../applications/applications.module';
-import { ApplicationsService } from '../applications/applications.service';
 import { AuthUser, CurrentUser } from '../auth/current-user.decorator';
 import { CsvColumn, pickColumns, toCsv } from '../common/csv';
 import { deadlineBucket, rangeToPrisma, resolveRange, startOfToday } from '../common/dates';
@@ -20,7 +18,13 @@ export class CreateWishlistDto {
   @IsString() @MinLength(1) @MaxLength(200) company: string;
   @IsString() @MinLength(1) @MaxLength(200) position: string;
   @IsOptional() @emptyToNull() @IsString() @MaxLength(2000) jobUrl?: string | null;
-  @IsOptional() @IsEnum(Platform) platform?: Platform;
+  @IsOptional() @IsString() @MinLength(1) @MaxLength(60) platform?: string;
+  @IsOptional() @emptyToNull() @IsString() @MaxLength(60) appliedVia?: string | null;
+  @IsOptional() @emptyToNull() @IsString() @MaxLength(500) companyWebsite?: string | null;
+  @IsOptional() @emptyToNull() @IsString() @MaxLength(100) jobReference?: string | null;
+  @IsOptional() @emptyToNull() @IsString() @MaxLength(200) recruiterName?: string | null;
+  @IsOptional() @emptyToNull() @IsString() @MaxLength(200) recruiterEmail?: string | null;
+  @IsOptional() @emptyToNull() @IsString() @MaxLength(500) recruiterLinkedin?: string | null;
   @IsOptional() @emptyToNull() @IsString() @MaxLength(200) location?: string | null;
   @IsOptional() @emptyToNull() @IsString() @MaxLength(100) country?: string | null;
   @IsOptional() @emptyToNull() @IsString() @MaxLength(100) city?: string | null;
@@ -40,8 +44,7 @@ export class UpdateWishlistDto extends PartialType(CreateWishlistDto) {}
 
 export class ApplyWishlistDto {
   @IsOptional() @IsDateString() appliedAt?: string;
-  @IsOptional() @IsEnum(AppliedVia) appliedVia?: AppliedVia;
-  @IsOptional() @emptyToNull() @IsString() @MaxLength(200) resumeVersion?: string | null;
+  @IsOptional() @IsString() @MinLength(1) @MaxLength(60) appliedVia?: string;
 }
 
 const ci = (value: string) => ({ contains: value, mode: 'insensitive' as const });
@@ -63,7 +66,7 @@ export function buildWishlistWhere(userId: string, q: RawQuery, tz: string): Pri
   const text = str(q, 'q');
   if (text) {
     and.push({
-      OR: [{ company: ci(text) }, { position: ci(text) }, { location: ci(text) }, { city: ci(text) }, { country: ci(text) }, { jobUrl: ci(text) }, { notes: ci(text) }],
+      OR: [{ company: ci(text) }, { position: ci(text) }, { location: ci(text) }, { city: ci(text) }, { country: ci(text) }, { jobUrl: ci(text) }, { notes: ci(text) }, { companyWebsite: ci(text) }, { jobReference: ci(text) }, { recruiterName: ci(text) }],
     });
   }
   const companies = list(q, 'company');
@@ -71,7 +74,7 @@ export function buildWishlistWhere(userId: string, q: RawQuery, tz: string): Pri
   const position = str(q, 'position');
   if (position) and.push({ position: ci(position) });
 
-  const platform = enumList(q, 'platform', Platform);
+  const platform = list(q, 'platform');
   if (platform.length) and.push({ platform: { in: platform } });
   const workplace = enumList(q, 'workplace', Workplace);
   if (workplace.length) and.push({ workplace: { in: workplace } });
@@ -134,7 +137,6 @@ export class WishlistService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly activity: ActivityService,
-    private readonly apps: ApplicationsService,
   ) {}
 
   async list(user: AuthUser, q: RawQuery) {
@@ -149,17 +151,19 @@ export class WishlistService {
 
   async facets(user: AuthUser) {
     const base = { userId: user.id };
-    const [companies, countries, cities, currencies] = await Promise.all([
+    const [companies, countries, cities, currencies, platforms] = await Promise.all([
       this.prisma.wishlistJob.groupBy({ by: ['company'], where: base, _count: { _all: true }, orderBy: { company: 'asc' } }),
       this.prisma.wishlistJob.groupBy({ by: ['country'], where: { ...base, country: { not: null } }, orderBy: { country: 'asc' } }),
       this.prisma.wishlistJob.groupBy({ by: ['city'], where: { ...base, city: { not: null } }, orderBy: { city: 'asc' } }),
       this.prisma.wishlistJob.groupBy({ by: ['currency'], where: { ...base, currency: { not: null } }, orderBy: { currency: 'asc' } }),
+      this.prisma.wishlistJob.groupBy({ by: ['platform'], where: base, orderBy: { platform: 'asc' } }),
     ]);
     return {
       companies: companies.map((c) => ({ value: c.company, count: c._count._all })),
       countries: countries.map((c) => c.country!),
       cities: cities.map((c) => c.city!),
       currencies: currencies.map((c) => c.currency!),
+      platforms: platforms.map((p) => p.platform),
     };
   }
 
@@ -200,42 +204,60 @@ export class WishlistService {
     return { ok: true };
   }
 
-  /** Converts a wishlist job into an application (Mark Applied). */
+  /**
+   * Converts a wishlist job into an application (Mark Applied).
+   * One nested write creates the application, both activity entries and marks the job applied —
+   * far fewer database round trips than separate calls (matters when the DB is far away).
+   */
   async apply(user: AuthUser, id: string, dto: ApplyWishlistDto) {
-    const job = await this.get(user, id);
+    const job = await this.prisma.wishlistJob.findFirst({ where: { id, userId: user.id }, include: { application: true } });
+    if (!job) throw new NotFoundException('Wishlist job not found');
     if (job.application) return job.application;
-    const appliedAt = dto.appliedAt ?? new Date().toISOString();
-    const app = await this.apps.create(
-      user,
-      {
-        company: job.company,
-        position: job.position,
-        jobUrl: job.jobUrl,
-        platform: job.platform,
-        appliedVia: dto.appliedVia,
-        jobType: job.jobType,
-        workplace: job.workplace,
-        location: job.location,
-        country: job.country,
-        city: job.city,
-        salaryMin: job.salaryMin,
-        salaryMax: job.salaryMax,
-        currency: job.currency,
-        priority: job.priority,
-        notes: job.notes,
-        resumeVersion: dto.resumeVersion ?? null,
+    const appliedAt = dto.appliedAt ? new Date(dto.appliedAt) : new Date();
+    const me = { connect: { id: user.id } };
+    const label = `${job.position} at ${job.company}`;
+    const updated = await this.prisma.wishlistJob.update({
+      where: { id },
+      data: {
         appliedAt,
+        application: {
+          create: {
+            user: me,
+            company: job.company,
+            position: job.position,
+            jobUrl: job.jobUrl,
+            platform: job.platform,
+            appliedVia: dto.appliedVia ?? job.appliedVia ?? 'WEBSITE',
+            jobType: job.jobType,
+            workplace: job.workplace,
+            location: job.location,
+            country: job.country,
+            city: job.city,
+            salaryMin: job.salaryMin,
+            salaryMax: job.salaryMax,
+            currency: job.currency,
+            priority: job.priority,
+            companyWebsite: job.companyWebsite,
+            jobReference: job.jobReference,
+            recruiterName: job.recruiterName,
+            recruiterEmail: job.recruiterEmail,
+            recruiterLinkedin: job.recruiterLinkedin,
+            notes: job.notes,
+            status: 'APPLIED',
+            appliedAt,
+            lastActivityAt: new Date(),
+            activities: {
+              create: [
+                { user: me, type: 'APPLICATION_CREATED', message: `Applied to ${label}` },
+                { user: me, wishlistJob: { connect: { id } }, type: 'WISHLIST_APPLIED', message: `Applied from wishlist: ${label}` },
+              ],
+            },
+          },
+        },
       },
-      { wishlistJobId: job.id },
-    );
-    await this.prisma.wishlistJob.update({ where: { id }, data: { appliedAt: new Date(appliedAt) } });
-    await this.activity.log(user.id, {
-      type: 'WISHLIST_APPLIED',
-      wishlistJobId: job.id,
-      applicationId: app.id,
-      message: `Applied from wishlist: ${job.position} at ${job.company}`,
+      include: { application: true },
     });
-    return app;
+    return updated.application!;
   }
 
   async exportCsv(user: AuthUser, q: RawQuery) {
@@ -251,6 +273,11 @@ const WISHLIST_CSV_COLUMNS: CsvColumn<Job>[] = [
   { key: 'deadline', header: 'Deadline', value: (r) => r.deadline },
   { key: 'priority', header: 'Priority', value: (r) => r.priority },
   { key: 'platform', header: 'Platform', value: (r) => r.platform },
+  { key: 'appliedVia', header: 'Apply Via', value: (r) => r.appliedVia },
+  { key: 'companyWebsite', header: 'Company Website', value: (r) => r.companyWebsite },
+  { key: 'jobReference', header: 'Job ID', value: (r) => r.jobReference },
+  { key: 'recruiter', header: 'Recruiter', value: (r) => r.recruiterName },
+  { key: 'recruiterEmail', header: 'Recruiter Email', value: (r) => r.recruiterEmail },
   { key: 'workplace', header: 'Workplace', value: (r) => r.workplace },
   { key: 'jobType', header: 'Job Type', value: (r) => r.jobType },
   { key: 'location', header: 'Location', value: (r) => [r.location, r.city, r.country].filter(Boolean).join(', ') },
@@ -310,5 +337,5 @@ export class WishlistController {
   }
 }
 
-@Module({ imports: [ApplicationsModule], controllers: [WishlistController], providers: [WishlistService] })
+@Module({ controllers: [WishlistController], providers: [WishlistService] })
 export class WishlistModule {}

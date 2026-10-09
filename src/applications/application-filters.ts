@@ -1,11 +1,9 @@
 import {
-  AppliedVia,
   ApplicationStatus,
   ConnectionStatus,
   InterviewStatus,
   JobType,
   MessageStatus,
-  Platform,
   Prisma,
   Priority,
   TaskStatus,
@@ -40,6 +38,8 @@ export function buildApplicationWhere(userId: string, q: RawQuery, tz: string): 
         { recruiterName: ci(text) },
         { recruiterEmail: ci(text) },
         { notes: ci(text) },
+        { companyWebsite: ci(text) },
+        { jobReference: ci(text) },
       ],
     });
   }
@@ -60,9 +60,9 @@ export function buildApplicationWhere(userId: string, q: RawQuery, tz: string): 
   const position = str(q, 'position');
   if (position) and.push({ position: ci(position) });
 
-  const platform = enumList(q, 'platform', Platform);
+  const platform = list(q, 'platform');
   if (platform.length) and.push({ platform: { in: platform } });
-  const appliedVia = enumList(q, 'appliedVia', AppliedVia);
+  const appliedVia = list(q, 'appliedVia');
   if (appliedVia.length) and.push({ appliedVia: { in: appliedVia } });
   const jobType = enumList(q, 'jobType', JobType);
   if (jobType.length) and.push({ jobType: { in: jobType } });
@@ -137,10 +137,6 @@ export function buildApplicationWhere(userId: string, q: RawQuery, tz: string): 
     if (or.length) and.push({ OR: or });
   }
 
-  const resume = list(q, 'resume');
-  if (resume.length) and.push({ OR: resume.map((r) => ({ resumeVersion: { equals: r, mode: 'insensitive' as const } })) });
-  const resumeText = str(q, 'resumeText');
-  if (resumeText) and.push({ resumeVersion: ci(resumeText) });
 
   // Inactivity — no activity for N days
   const inactive = num(q, 'inactive');
@@ -173,7 +169,7 @@ export function buildApplicationWhere(userId: string, q: RawQuery, tz: string): 
       deadline: { deadline: null },
       jobUrl: { jobUrl: null },
       location: { location: null, city: null, country: null },
-      resume: { resumeVersion: null },
+      website: { companyWebsite: null },
     };
     const or = missing.map((m) => map[m]).filter(Boolean);
     if (or.length) and.push({ OR: or });
