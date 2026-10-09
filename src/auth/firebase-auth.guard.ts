@@ -17,7 +17,9 @@ export const Public = () => SetMetadata(IS_PUBLIC, true);
 export class FirebaseAuthGuard implements CanActivate {
   private readonly logger = new Logger(FirebaseAuthGuard.name);
   private readonly app: App;
-  private readonly userCache = new Map<string, string>();
+  /** uid → { local user id, cached at }. Short TTL so a deleted/re-created user row is picked up quickly. */
+  private readonly userCache = new Map<string, { id: string; at: number }>();
+  private static readonly CACHE_TTL_MS = 60_000;
 
   constructor(
     private readonly reflector: Reflector,
@@ -42,7 +44,8 @@ export class FirebaseAuthGuard implements CanActivate {
       throw new UnauthorizedException('Invalid or expired token');
     }
 
-    let userId = this.userCache.get(decoded.uid);
+    const cached = this.userCache.get(decoded.uid);
+    let userId = cached && Date.now() - cached.at < FirebaseAuthGuard.CACHE_TTL_MS ? cached.id : undefined;
     if (!userId && decoded.email && decoded.email_verified) {
       // Re-link an existing account when the Firebase project (and therefore the uid) changed.
       // Only verified emails are trusted, so nobody can claim another person's data.
@@ -68,7 +71,7 @@ export class FirebaseAuthGuard implements CanActivate {
         },
       });
       userId = user.id;
-      this.userCache.set(decoded.uid, userId);
+      this.userCache.set(decoded.uid, { id: userId, at: Date.now() });
     }
 
     const tzHeader = req.headers['x-timezone'];
