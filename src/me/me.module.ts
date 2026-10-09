@@ -56,7 +56,12 @@ export class MeController {
   /** Saves the user's custom Platform / Applied via choices (trimmed, de-duplicated). */
   @Put('me/options')
   async options(@CurrentUser() user: AuthUser, @Body() dto: CustomOptionsDto) {
-    const clean = (arr: string[]) => [...new Map(arr.map((v) => v.trim()).filter(Boolean).map((v) => [v.toLowerCase(), v])).values()];
+    // Trim, collapse spaces and drop case-insensitive duplicates, keeping the first spelling.
+    const clean = (arr: string[]) => {
+      const seen = new Map<string, string>();
+      for (const v of arr.map((x) => x.trim().replace(/\s+/g, ' ')).filter(Boolean)) if (!seen.has(v.toLowerCase())) seen.set(v.toLowerCase(), v);
+      return [...seen.values()];
+    };
     const customOptions = { platform: clean(dto.platform), appliedVia: clean(dto.appliedVia) };
     const u = await this.prisma.user.update({ where: { id: user.id }, data: { customOptions } });
     return u.customOptions;
