@@ -10,7 +10,7 @@ type Tx = Prisma.TransactionClient | PrismaService;
 /** UI-facing activity groups → stored activity types. */
 export const ACTIVITY_GROUPS: Record<string, ActivityType[]> = {
   applications: ['APPLICATION_CREATED'],
-  wishlist: ['WISHLIST_ADDED', 'WISHLIST_APPLIED'],
+  wishlist: ['WISHLIST_ADDED', 'WISHLIST_APPLIED', 'REMINDER_SENT'],
   status: ['STATUS_CHANGED'],
   recruiter: ['RECRUITER_MESSAGE', 'RECRUITER_REPLY'],
   interviews: ['INTERVIEW_SCHEDULED', 'INTERVIEW_UPDATED'],

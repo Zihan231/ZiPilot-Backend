@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { ScheduleModule } from '@nestjs/schedule';
 import { APP_GUARD } from '@nestjs/core';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './auth/auth.module';
@@ -12,10 +13,12 @@ import { DashboardModule } from './dashboard/dashboard.module';
 import { SearchModule } from './search/search.module';
 import { PresetsModule } from './presets/presets.module';
 import { MeModule } from './me/me.module';
+import { NotificationsModule } from './notifications/notifications.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
+    ScheduleModule.forRoot(),
     PrismaModule,
     AuthModule,
     ActivityModule,
@@ -26,6 +29,7 @@ import { MeModule } from './me/me.module';
     SearchModule,
     PresetsModule,
     MeModule,
+    NotificationsModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: FirebaseAuthGuard }],
 })

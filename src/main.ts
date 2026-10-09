@@ -1,3 +1,5 @@
+// Load .env before any module is imported so module-level config (e.g. cron schedule) sees it.
+import 'dotenv/config';
 import 'reflect-metadata';
 import { Logger, ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';

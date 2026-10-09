@@ -134,6 +134,7 @@ enum ActivityType {
   TASK_ADDED
   TASK_SUBMITTED
   TASK_COMPLETED
+  REMINDER_SENT
 }
 
 enum PresetScope {
@@ -262,8 +263,9 @@ model WishlistJob {
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
-  application Application?
-  activities  Activity[]
+  application  Application?
+  activities   Activity[]
+  reminderLogs ReminderLog[]
 
   @@index([userId, deadline])
   @@index([userId, appliedAt])
@@ -360,4 +362,18 @@ model FilterPreset {
   createdAt DateTime    @default(now())
 
   @@unique([userId, scope, name])
+}
+
+/// One row per reminder email sent — guarantees each reminder goes out exactly once.
+model ReminderLog {
+  id            String      @id @default(cuid())
+  userId        String
+  wishlistJobId String
+  wishlistJob   WishlistJob @relation(fields: [wishlistJobId], references: [id], onDelete: Cascade)
+  /// e.g. "deadline-3d:2026-10-12", "deadline-1d:2026-10-12", "custom:2026-10-10"
+  kind          String
+  sentAt        DateTime    @default(now())
+
+  @@unique([wishlistJobId, kind])
+  @@index([userId, sentAt])
 }
