@@ -1,4 +1,4 @@
-import { BadRequestException, Controller, Get, Injectable, Logger, Module, Post } from '@nestjs/common';
+import { Controller, Get, Injectable, Logger, Module } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { Prisma } from '@prisma/client';
 import { DateTime } from 'luxon';
@@ -6,7 +6,7 @@ import { ActivityService } from '../activity/activity.module';
 import { AuthUser, CurrentUser } from '../auth/current-user.decorator';
 import { safeZone } from '../common/dates';
 import { PrismaService } from '../prisma/prisma.module';
-import { reminderEmail, ReminderItem, testEmail } from './email-templates';
+import { reminderEmail, ReminderItem } from './email-templates';
 import { MailService } from './mail.service';
 
 const TZ = safeZone(process.env.REMINDER_TIMEZONE || 'Asia/Dhaka');
@@ -131,14 +131,6 @@ export class RemindersService {
     });
     return { sent: due.length, reason: 'sent' as const, to: user.email };
   }
-
-  async sendTest(user: AuthUser) {
-    const u = await this.prisma.user.findUnique({ where: { id: user.id } });
-    if (!u?.email) throw new BadRequestException('Your account has no email address.');
-    const { subject, html, text } = testEmail(u.displayName?.split(' ')[0] || u.email.split('@')[0], APP_URL, this.scheduleLabel);
-    await this.mail.send(u.email, subject, html, text);
-    return { ok: true, to: u.email };
-  }
 }
 
 @Controller('notifications')
@@ -163,26 +155,6 @@ export class NotificationsController {
       pendingNow: pending.length,
       lastSentAt: lastSent?.sentAt ?? null,
     };
-  }
-
-  @Post('test')
-  async test(@CurrentUser() user: AuthUser) {
-    try {
-      return await this.reminders.sendTest(user);
-    } catch (e) {
-      throw new BadRequestException((e as Error).message);
-    }
-  }
-
-  /** Sends any reminders that are due right now (instead of waiting for the schedule). */
-  @Post('reminders/run')
-  async run(@CurrentUser() user: AuthUser) {
-    if (!this.mail.configured) throw new BadRequestException('Email is not configured. Set SMTP_USER and SMTP_PASS in backend/.env.');
-    try {
-      return await this.reminders.sendForUser(user.id);
-    } catch (e) {
-      throw new BadRequestException((e as Error).message);
-    }
   }
 }
 

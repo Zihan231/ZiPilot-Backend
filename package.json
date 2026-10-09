@@ -9,7 +9,9 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:deploy": "prisma migrate deploy",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "seed:demo": "node scripts/seed-demo.js seed",
+    "seed:clear": "node scripts/seed-demo.js clear"
   },
   "dependencies": {
     "@nestjs/common": "^11.2.7",

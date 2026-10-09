@@ -47,8 +47,8 @@ export function reminderEmail(name: string, items: ReminderItem[], appUrl: strin
   const urgent = items.filter((i) => i.urgency === 'today' || i.urgency === 'tomorrow').length;
   const subject =
     items.length === 1
-      ? `⏰ ${items[0].company} — ${items[0].whenLabel.toLowerCase()}: apply for ${items[0].position}`
-      : `⏰ ${items.length} wishlist deadlines coming up${urgent ? ` (${urgent} due within a day)` : ''}`;
+      ? `${items[0].company} — ${items[0].whenLabel.toLowerCase()}: apply for ${items[0].position}`
+      : `${items.length} wishlist deadlines coming up${urgent ? ` (${urgent} due within a day)` : ''}`;
 
   const rows = items
     .map((i) => {
@@ -79,18 +79,4 @@ export function reminderEmail(name: string, items: ReminderItem[], appUrl: strin
     `Open your wishlist: ${appUrl}/wishlist`,
   ].join('\n');
   return { subject, html, text };
-}
-
-export function testEmail(name: string, appUrl: string, scheduleLabel: string) {
-  const body = `<p style="font-size:14px;line-height:1.6;color:#334155;margin:0 0 12px">Email delivery is working. You will receive wishlist deadline reminders <b>${esc(scheduleLabel)}</b>:</p>
-  <ul style="font-size:14px;line-height:1.8;color:#334155;margin:0 0 12px;padding-left:20px">
-    <li>3 days before a deadline</li>
-    <li>1 day before a deadline</li>
-    <li>On any “Remind me on” date you set</li>
-  </ul>`;
-  return {
-    subject: '✅ ZiPilot email reminders are set up',
-    html: shell('Email reminders are working', `Hi ${esc(name)}, this is a test from ZiPilot.`, body, appUrl),
-    text: `Hi ${name}, ZiPilot email delivery works. Wishlist deadline reminders are sent ${scheduleLabel}: 3 days before, 1 day before, and on any custom reminder date.`,
-  };
 }
