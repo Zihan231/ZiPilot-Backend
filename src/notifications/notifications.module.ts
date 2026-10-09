@@ -4,6 +4,7 @@ import { Prisma } from '@prisma/client';
 import { DateTime } from 'luxon';
 import { ActivityService } from '../activity/activity.module';
 import { AuthUser, CurrentUser } from '../auth/current-user.decorator';
+import { APP_URL } from '../common/config';
 import { safeZone } from '../common/dates';
 import { PrismaService } from '../prisma/prisma.module';
 import { reminderEmail, ReminderItem } from './email-templates';
@@ -11,7 +12,6 @@ import { MailService } from './mail.service';
 
 const TZ = safeZone(process.env.REMINDER_TIMEZONE || 'Asia/Dhaka');
 const HOUR = Number(process.env.REMINDER_HOUR ?? 8);
-const APP_URL = (process.env.APP_URL || 'http://localhost:3000').replace(/\/$/, '');
 const PRIORITY: Record<string, string> = { HIGH: 'High', MEDIUM: 'Medium', LOW: 'Low' };
 
 interface Due {

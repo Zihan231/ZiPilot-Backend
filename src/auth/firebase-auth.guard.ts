@@ -3,6 +3,7 @@ import { Reflector } from '@nestjs/core';
 import { App, getApps, initializeApp } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import { PrismaService } from '../prisma/prisma.module';
+import { FIREBASE_PROJECT_ID } from '../common/config';
 import { AuthUser } from './current-user.decorator';
 
 export const IS_PUBLIC = 'isPublic';
@@ -22,7 +23,7 @@ export class FirebaseAuthGuard implements CanActivate {
     private readonly reflector: Reflector,
     private readonly prisma: PrismaService,
   ) {
-    this.app = getApps()[0] ?? initializeApp({ projectId: process.env.FIREBASE_PROJECT_ID });
+    this.app = getApps()[0] ?? initializeApp({ projectId: FIREBASE_PROJECT_ID });
   }
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
