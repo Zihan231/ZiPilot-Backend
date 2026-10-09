@@ -62,7 +62,7 @@ export class ActivityService {
     const applicationId = str(q, 'applicationId');
     if (applicationId) where.applicationId = applicationId;
 
-    const [items, total] = await this.prisma.$transaction([
+    const [items, total] = await Promise.all([
       this.prisma.activity.findMany({
         where,
         orderBy: { createdAt: 'desc' },

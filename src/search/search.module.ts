@@ -46,7 +46,7 @@ export class SearchService {
     const appWhere: Prisma.ApplicationWhereInput = { userId: user.id, OR: APP_FIELDS.map((f) => ({ [f.key]: ci(q) })) };
     const wishWhere: Prisma.WishlistJobWhereInput = { userId: user.id, OR: WISH_FIELDS.map((f) => ({ [f.key]: ci(q) })) };
 
-    const [apps, appTotal, wish, wishTotal] = await this.prisma.$transaction([
+    const [apps, appTotal, wish, wishTotal] = await Promise.all([
       this.prisma.application.findMany({ where: appWhere, orderBy: { lastActivityAt: 'desc' }, take: limit }),
       this.prisma.application.count({ where: appWhere }),
       this.prisma.wishlistJob.findMany({ where: wishWhere, orderBy: { createdAt: 'desc' }, take: limit }),

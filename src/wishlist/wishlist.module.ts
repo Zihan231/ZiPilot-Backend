@@ -140,7 +140,7 @@ export class WishlistService {
   async list(user: AuthUser, q: RawQuery) {
     const where = buildWishlistWhere(user.id, q, user.tz);
     const { page, pageSize, skip, take } = pagination(q);
-    const [items, total] = await this.prisma.$transaction([
+    const [items, total] = await Promise.all([
       this.prisma.wishlistJob.findMany({ where, orderBy: buildWishlistOrder(q), skip, take, include: { application: { select: { id: true, status: true } } } }),
       this.prisma.wishlistJob.count({ where }),
     ]);

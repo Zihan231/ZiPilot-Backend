@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Module, Put } from '@nestjs/common';
+import { Body, Controller, Get, Header, Module, Put, ServiceUnavailableException } from '@nestjs/common';
 import { Type } from 'class-transformer';
 import { IsArray, IsBoolean, IsString, MaxLength, ValidateNested } from 'class-validator';
 import { Public } from '../auth/firebase-auth.guard';
@@ -18,10 +18,29 @@ export class DashboardLayoutDto {
 export class MeController {
   constructor(private readonly prisma: PrismaService) {}
 
+  /**
+   * Liveness check for uptime monitors (e.g. UptimeRobot keeping the Render instance awake).
+   * No auth, no database work — responds instantly to GET and HEAD.
+   */
   @Public()
   @Get('health')
+  @Header('Cache-Control', 'no-store')
   health() {
-    return { ok: true };
+    return { ok: true, status: 'up', uptimeSeconds: Math.round(process.uptime()), timestamp: new Date().toISOString() };
+  }
+
+  /** Readiness check: also verifies the database connection (returns 503 if it's unreachable). */
+  @Public()
+  @Get('health/ready')
+  @Header('Cache-Control', 'no-store')
+  async ready() {
+    const started = Date.now();
+    try {
+      await this.prisma.$queryRaw`SELECT 1`;
+    } catch {
+      throw new ServiceUnavailableException({ ok: false, status: 'database-unreachable' });
+    }
+    return { ok: true, status: 'ready', database: 'up', dbLatencyMs: Date.now() - started, timestamp: new Date().toISOString() };
   }
 
   @Get('me')

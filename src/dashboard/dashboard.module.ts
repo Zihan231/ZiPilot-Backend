@@ -163,7 +163,7 @@ export class DashboardService {
     const replyWhere = buildApplicationWhere(user.id, { needsReply: 'yes' }, tz);
 
     const [dueSoon, dueSoonCount, overdue, overdueCount, follow, followCount, interviews, interviewCount, tasks, taskCount, stale, staleCount, reply, replyCount] =
-      await this.prisma.$transaction([
+      await Promise.all([
         this.prisma.wishlistJob.findMany({ where: dueSoonWhere, orderBy: { deadline: 'asc' }, take }),
         this.prisma.wishlistJob.count({ where: dueSoonWhere }),
         this.prisma.wishlistJob.findMany({ where: overdueWhere, orderBy: { deadline: 'desc' }, take }),
@@ -200,7 +200,7 @@ export class DashboardService {
     const range = resolveRange(str(q, 'range') ?? '30d', str(q, 'from'), str(q, 'to'), tz);
 
     const [statusGroups, platformGroups, platformInterviews, platformOffers, jobTypeGroups, workplaceGroups, total, responded, screened, interviewed, offered, contacted, replied, firstApp] =
-      await this.prisma.$transaction([
+      await Promise.all([
         this.prisma.application.groupBy({ by: ['status'], where, _count: { _all: true }, orderBy: { status: 'asc' } }),
         this.prisma.application.groupBy({ by: ['platform'], where, _count: { _all: true }, orderBy: { platform: 'asc' } }),
         this.prisma.application.groupBy({ by: ['platform'], where: { AND: [where, { interviewedAt: { not: null } }] }, _count: { _all: true }, orderBy: { platform: 'asc' } }),

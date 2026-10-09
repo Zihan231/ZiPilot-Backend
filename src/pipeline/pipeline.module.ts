@@ -75,7 +75,7 @@ export class PipelineService {
     if (buckets.includes('today')) or.push({ dueAt: { gte: today.toJSDate(), lt: today.plus({ days: 1 }).toJSDate() } });
     if (buckets.includes('upcoming')) or.push({ dueAt: { gte: today.plus({ days: 1 }).toJSDate() } });
     if (or.length) where.OR = or;
-    const [items, total] = await this.prisma.$transaction([
+    const [items, total] = await Promise.all([
       this.prisma.followUp.findMany({ where, orderBy: { dueAt: 'asc' }, skip, take, include: { application: { select: APP_SELECT } } }),
       this.prisma.followUp.count({ where }),
     ]);
@@ -154,7 +154,7 @@ export class PipelineService {
     const where: Prisma.InterviewWhereInput = { userId: user.id };
     if (status.length) where.status = { in: status };
     if (list(q, 'when').includes('upcoming')) where.scheduledAt = { gte: DateTime.now().minus({ hours: 2 }).toJSDate() };
-    const [items, total] = await this.prisma.$transaction([
+    const [items, total] = await Promise.all([
       this.prisma.interview.findMany({ where, orderBy: { scheduledAt: 'asc' }, skip, take, include: { application: { select: APP_SELECT } } }),
       this.prisma.interview.count({ where }),
     ]);
@@ -229,7 +229,7 @@ export class PipelineService {
     const status = enumList(q, 'status', TaskStatus);
     const where: Prisma.TaskWhereInput = { userId: user.id };
     if (status.length) where.status = { in: status };
-    const [items, total] = await this.prisma.$transaction([
+    const [items, total] = await Promise.all([
       this.prisma.task.findMany({ where, orderBy: [{ dueAt: { sort: 'asc', nulls: 'last' } }], skip, take, include: { application: { select: APP_SELECT } } }),
       this.prisma.task.count({ where }),
     ]);

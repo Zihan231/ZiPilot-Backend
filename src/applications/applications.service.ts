@@ -28,7 +28,7 @@ export class ApplicationsService {
   async list(user: AuthUser, q: RawQuery) {
     const where = buildApplicationWhere(user.id, q, user.tz);
     const { page, pageSize, skip, take } = pagination(q);
-    const [items, total] = await this.prisma.$transaction([
+    const [items, total] = await Promise.all([
       this.prisma.application.findMany({ where, orderBy: buildApplicationOrder(q), skip, take, include: LIST_INCLUDE }),
       this.prisma.application.count({ where }),
     ]);
