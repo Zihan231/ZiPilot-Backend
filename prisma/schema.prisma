@@ -1,3 +1,363 @@
-generator client { provider = "prisma-client-js" }
-datasource db { provider = "postgresql"
- url = env("DATABASE_URL") }
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [pg_trgm]
+}
+
+// ───────────────────────── Enums ─────────────────────────
+
+enum ApplicationStatus {
+  APPLIED
+  SCREENING
+  IN_REVIEW
+  ASSESSMENT
+  INTERVIEW
+  OFFER
+  ACCEPTED
+  REJECTED
+  WITHDRAWN
+  GHOSTED
+}
+
+enum Platform {
+  LINKEDIN
+  INDEED
+  GLASSDOOR
+  COMPANY_WEBSITE
+  WELLFOUND
+  BDJOBS
+  ZIPRECRUITER
+  REFERRAL
+  OTHER
+}
+
+enum AppliedVia {
+  EASY_APPLY
+  WEBSITE
+  EMAIL
+  REFERRAL
+  RECRUITER
+  JOB_PORTAL
+  OTHER
+}
+
+enum JobType {
+  FULL_TIME
+  PART_TIME
+  CONTRACT
+  INTERNSHIP
+  FREELANCE
+  TEMPORARY
+}
+
+enum Workplace {
+  REMOTE
+  HYBRID
+  ONSITE
+}
+
+enum Priority {
+  HIGH
+  MEDIUM
+  LOW
+}
+
+enum ConnectionStatus {
+  NOT_SENT
+  SENT
+  ACCEPTED
+  DECLINED
+}
+
+enum MessageStatus {
+  NOT_SENT
+  SENT
+  SEEN
+  REPLIED
+}
+
+enum InterviewType {
+  PHONE_SCREEN
+  HR
+  TECHNICAL
+  BEHAVIORAL
+  SYSTEM_DESIGN
+  ONSITE
+  FINAL
+  OTHER
+}
+
+enum InterviewStatus {
+  SCHEDULED
+  COMPLETED
+  CANCELLED
+}
+
+enum TaskType {
+  CODING_ASSESSMENT
+  TAKE_HOME
+  PRESENTATION
+  QUESTIONNAIRE
+  OTHER
+}
+
+enum TaskStatus {
+  PENDING
+  SUBMITTED
+  COMPLETED
+}
+
+enum FollowUpChannel {
+  EMAIL
+  LINKEDIN
+  PHONE
+  OTHER
+}
+
+enum ActivityType {
+  APPLICATION_CREATED
+  APPLICATION_UPDATED
+  STATUS_CHANGED
+  WISHLIST_ADDED
+  WISHLIST_APPLIED
+  RECRUITER_MESSAGE
+  RECRUITER_REPLY
+  INTERVIEW_SCHEDULED
+  INTERVIEW_UPDATED
+  FOLLOWUP_SCHEDULED
+  FOLLOWUP_COMPLETED
+  TASK_ADDED
+  TASK_SUBMITTED
+  TASK_COMPLETED
+}
+
+enum PresetScope {
+  APPLICATIONS
+  WISHLIST
+}
+
+// ───────────────────────── Models ─────────────────────────
+
+model User {
+  id              String   @id @default(cuid())
+  firebaseUid     String   @unique
+  email           String?
+  displayName     String?
+  photoUrl        String?
+  dashboardLayout Json?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  applications Application[]
+  wishlist     WishlistJob[]
+  followUps    FollowUp[]
+  interviews   Interview[]
+  tasks        Task[]
+  activities   Activity[]
+  presets      FilterPreset[]
+}
+
+model Application {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  company       String
+  position      String
+  jobUrl        String?
+  platform      Platform          @default(LINKEDIN)
+  appliedVia    AppliedVia        @default(WEBSITE)
+  jobType       JobType           @default(FULL_TIME)
+  workplace     Workplace         @default(ONSITE)
+  location      String?
+  country       String?
+  city          String?
+  salaryMin     Int?
+  salaryMax     Int?
+  currency      String?
+  status        ApplicationStatus @default(APPLIED)
+  priority      Priority          @default(MEDIUM)
+  appliedAt     DateTime          @default(now())
+  deadline      DateTime?
+  resumeVersion String?
+  notes         String?
+
+  // Recruiter outreach
+  recruiterName      String?
+  recruiterEmail     String?
+  recruiterLinkedin  String?
+  connectionStatus   ConnectionStatus @default(NOT_SENT)
+  msg1Status         MessageStatus    @default(NOT_SENT)
+  msg1SentAt         DateTime?
+  msg2Status         MessageStatus    @default(NOT_SENT)
+  msg2SentAt         DateTime?
+  msg3Status         MessageStatus    @default(NOT_SENT)
+  msg3SentAt         DateTime?
+  recruiterReplied   Boolean          @default(false)
+  recruiterRepliedAt DateTime?
+  needsReply         Boolean          @default(false)
+
+  // Funnel milestones (first time each stage was reached)
+  respondedAt   DateTime?
+  screenedAt    DateTime?
+  interviewedAt DateTime?
+  offeredAt     DateTime?
+  rejectedAt    DateTime?
+
+  lastActivityAt DateTime @default(now())
+  wishlistJobId  String?  @unique
+  wishlistJob    WishlistJob? @relation(fields: [wishlistJobId], references: [id], onDelete: SetNull)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  followUps  FollowUp[]
+  interviews Interview[]
+  tasks      Task[]
+  activities Activity[]
+
+  @@index([userId, appliedAt])
+  @@index([userId, status])
+  @@index([userId, lastActivityAt])
+  @@index([userId, platform])
+  @@index([userId, deadline])
+  @@index([userId, company])
+  @@index([userId, needsReply])
+  @@index([company(ops: raw("gin_trgm_ops"))], type: Gin, map: "Application_company_trgm")
+  @@index([position(ops: raw("gin_trgm_ops"))], type: Gin, map: "Application_position_trgm")
+  @@index([location(ops: raw("gin_trgm_ops"))], type: Gin, map: "Application_location_trgm")
+  @@index([recruiterName(ops: raw("gin_trgm_ops"))], type: Gin, map: "Application_recruiterName_trgm")
+  @@index([recruiterEmail(ops: raw("gin_trgm_ops"))], type: Gin, map: "Application_recruiterEmail_trgm")
+  @@index([notes(ops: raw("gin_trgm_ops"))], type: Gin, map: "Application_notes_trgm")
+  @@index([jobUrl(ops: raw("gin_trgm_ops"))], type: Gin, map: "Application_jobUrl_trgm")
+}
+
+model WishlistJob {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  company      String
+  position     String
+  jobUrl       String?
+  platform     Platform  @default(LINKEDIN)
+  location     String?
+  country      String?
+  city         String?
+  workplace    Workplace @default(ONSITE)
+  jobType      JobType   @default(FULL_TIME)
+  salaryMin    Int?
+  salaryMax    Int?
+  currency     String?
+  priority     Priority  @default(MEDIUM)
+  deadline     DateTime?
+  notes        String?
+  reminderSent Boolean   @default(false)
+  reminderAt   DateTime?
+  appliedAt    DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  application Application?
+  activities  Activity[]
+
+  @@index([userId, deadline])
+  @@index([userId, appliedAt])
+  @@index([userId, createdAt])
+  @@index([company(ops: raw("gin_trgm_ops"))], type: Gin, map: "WishlistJob_company_trgm")
+  @@index([position(ops: raw("gin_trgm_ops"))], type: Gin, map: "WishlistJob_position_trgm")
+  @@index([location(ops: raw("gin_trgm_ops"))], type: Gin, map: "WishlistJob_location_trgm")
+  @@index([notes(ops: raw("gin_trgm_ops"))], type: Gin, map: "WishlistJob_notes_trgm")
+}
+
+model FollowUp {
+  id            String          @id @default(cuid())
+  userId        String
+  user          User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  applicationId String
+  application   Application     @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  dueAt         DateTime
+  channel       FollowUpChannel @default(EMAIL)
+  note          String?
+  completedAt   DateTime?
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  @@index([userId, completedAt, dueAt])
+  @@index([applicationId])
+}
+
+model Interview {
+  id              String          @id @default(cuid())
+  userId          String
+  user            User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  applicationId   String
+  application     Application     @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  type            InterviewType   @default(PHONE_SCREEN)
+  status          InterviewStatus @default(SCHEDULED)
+  scheduledAt     DateTime
+  durationMinutes Int?
+  location        String?
+  interviewer     String?
+  notes           String?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  @@index([userId, status, scheduledAt])
+  @@index([applicationId])
+}
+
+model Task {
+  id            String      @id @default(cuid())
+  userId        String
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  applicationId String
+  application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  title         String
+  type          TaskType    @default(CODING_ASSESSMENT)
+  status        TaskStatus  @default(PENDING)
+  dueAt         DateTime?
+  link          String?
+  notes         String?
+  submittedAt   DateTime?
+  completedAt   DateTime?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@index([userId, status, dueAt])
+  @@index([applicationId])
+}
+
+model Activity {
+  id            String       @id @default(cuid())
+  userId        String
+  user          User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  applicationId String?
+  application   Application? @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  wishlistJobId String?
+  wishlistJob   WishlistJob? @relation(fields: [wishlistJobId], references: [id], onDelete: Cascade)
+  type          ActivityType
+  message       String
+  meta          Json?
+  createdAt     DateTime     @default(now())
+
+  @@index([userId, createdAt])
+  @@index([userId, type, createdAt])
+  @@index([applicationId])
+}
+
+model FilterPreset {
+  id        String      @id @default(cuid())
+  userId    String
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  scope     PresetScope
+  name      String
+  query     String
+  createdAt DateTime    @default(now())
+
+  @@unique([userId, scope, name])
+}
