@@ -42,6 +42,19 @@ export class FirebaseAuthGuard implements CanActivate {
     }
 
     let userId = this.userCache.get(decoded.uid);
+    if (!userId && decoded.email && decoded.email_verified) {
+      // Re-link an existing account when the Firebase project (and therefore the uid) changed.
+      // Only verified emails are trusted, so nobody can claim another person's data.
+      const existing = await this.prisma.user.findFirst({
+        where: { email: { equals: decoded.email, mode: 'insensitive' }, NOT: { firebaseUid: decoded.uid } },
+        orderBy: { createdAt: 'asc' },
+      });
+      const taken = await this.prisma.user.findUnique({ where: { firebaseUid: decoded.uid } });
+      if (existing && !taken) {
+        await this.prisma.user.update({ where: { id: existing.id }, data: { firebaseUid: decoded.uid } });
+        this.logger.log(`Re-linked account ${decoded.email} to new Firebase uid`);
+      }
+    }
     if (!userId) {
       const user = await this.prisma.user.upsert({
         where: { firebaseUid: decoded.uid },
